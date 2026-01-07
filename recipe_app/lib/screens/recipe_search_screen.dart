@@ -112,11 +112,6 @@ class _RecipeSearchScreenState extends State<RecipeSearchScreen> {
                   '음식 재료를 입력하세요',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '※ 한글로 입력하세요 (예: 양파, 당근, 감자)',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
