@@ -59,7 +59,7 @@ class RecipeCard extends StatelessWidget {
                 children: [
                   // 제목
                   Text(
-                    recipe.title,
+                    recipe.displayTitle,
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -70,7 +70,7 @@ class RecipeCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   // 설명
                   Text(
-                    recipe.description,
+                    recipe.displayDescription,
                     style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,

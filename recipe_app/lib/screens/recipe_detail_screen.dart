@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../models/recipe.dart';
-import '../widgets/cooking_timer.dart';
 
 /// 레시피 상세 화면
 class RecipeDetailScreen extends StatelessWidget {
@@ -12,7 +11,7 @@ class RecipeDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(recipe.title),
+        title: Text(recipe.displayTitle),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -35,12 +34,12 @@ class RecipeDetailScreen extends StatelessWidget {
             const SizedBox(height: 16),
             // 레시피 정보
             Text(
-              recipe.title,
+              recipe.displayTitle,
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              recipe.description,
+              recipe.displayDescription,
               style: TextStyle(fontSize: 16, color: Colors.grey[700]),
             ),
             const SizedBox(height: 16),
@@ -49,7 +48,6 @@ class RecipeDetailScreen extends StatelessWidget {
               children: [
                 _buildInfoChip(Icons.access_time, '${recipe.cookingTime}분'),
                 const SizedBox(width: 8),
-                _buildInfoChip(Icons.people, '${recipe.servingSize}인분'),
                 if (recipe.difficulty != null) ...[
                   const SizedBox(width: 8),
                   _buildInfoChip(Icons.star, recipe.difficulty!),
@@ -63,7 +61,7 @@ class RecipeDetailScreen extends StatelessWidget {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            ...recipe.ingredients.map((ingredient) => Padding(
+            ...recipe.displayIngredients.map((ingredient) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Row(
                     children: [
@@ -71,11 +69,12 @@ class RecipeDetailScreen extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          ingredient.name,
+                          ingredient.displayName,
                           style: const TextStyle(fontSize: 16),
                         ),
                       ),
-                      if (ingredient.quantity != null && ingredient.unit != null)
+                      if (ingredient.quantity != null &&
+                          ingredient.unit != null)
                         Text(
                           '${ingredient.quantity} ${ingredient.unit}',
                           style: TextStyle(color: Colors.grey[600]),
@@ -90,7 +89,7 @@ class RecipeDetailScreen extends StatelessWidget {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            ...recipe.steps.asMap().entries.map((entry) => Padding(
+            ...recipe.displaySteps.asMap().entries.map((entry) => Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -123,25 +122,6 @@ class RecipeDetailScreen extends StatelessWidget {
                   ),
                 )),
             const SizedBox(height: 24),
-            // 타이머 버튼
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => CookingTimer(
-                      cookingTime: recipe.cookingTime,
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.timer),
-                label: const Text('조리 타이머 시작'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -155,7 +135,3 @@ class RecipeDetailScreen extends StatelessWidget {
     );
   }
 }
-
-
-
-

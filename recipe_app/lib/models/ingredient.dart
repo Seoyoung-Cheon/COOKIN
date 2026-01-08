@@ -7,6 +7,9 @@ class Ingredient {
   final DateTime? expiryDate; // 유통기한
   final String? category; // 카테고리 (예: '채소', '육류', '유제품')
 
+  // 번역된 이름
+  String? translatedName;
+
   Ingredient({
     required this.id,
     required this.name,
@@ -14,7 +17,11 @@ class Ingredient {
     this.quantity,
     this.expiryDate,
     this.category,
+    this.translatedName,
   });
+
+  // 표시용 이름 (번역본 우선)
+  String get displayName => translatedName ?? name;
 
   /// JSON으로 변환
   Map<String, dynamic> toJson() {
@@ -50,6 +57,7 @@ class Ingredient {
     double? quantity,
     DateTime? expiryDate,
     String? category,
+    String? translatedName,
   }) {
     return Ingredient(
       id: id ?? this.id,
@@ -58,6 +66,7 @@ class Ingredient {
       quantity: quantity ?? this.quantity,
       expiryDate: expiryDate ?? this.expiryDate,
       category: category ?? this.category,
+      translatedName: translatedName ?? this.translatedName,
     );
   }
 }

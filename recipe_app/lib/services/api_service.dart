@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/recipe.dart';
+import '../models/recipe_detail.dart';
 import '../models/ingredient.dart';
 import '../utils/constants.dart';
 import '../utils/ingredient_translator.dart';
@@ -9,6 +10,20 @@ import '../utils/ingredient_translator.dart';
 class ApiService {
   static const String baseUrl = ApiConstants.spoonacularBaseUrl;
   static const String apiKey = ApiConstants.spoonacularApiKey;
+
+  // 🆕 한국인이 좋아할 만한 요리 태그
+  final List<String> _koreanFriendlyTags = [
+    'asian',
+    'korean',
+    'japanese',
+    'chinese',
+    'soup',
+    'rice',
+    'noodles',
+    'stir fry',
+    'fried',
+    'boiled',
+  ];
 
   /// 레시피 목록 가져오기
   Future<List<Recipe>> getRecipes({String? query}) async {
@@ -101,6 +116,37 @@ class ApiService {
     return '쉬움';
   }
 
+  /// 한국인이 좋아할 만한 요리인지 확인
+  bool _isKoreanFriendly(RecipeDetail recipeDetail) {
+    // cuisines 확인
+    if (recipeDetail.cuisines != null) {
+      for (var cuisine in recipeDetail.cuisines!) {
+        final lowerCuisine = cuisine.toLowerCase();
+        if (_koreanFriendlyTags.any((tag) => lowerCuisine.contains(tag))) {
+          return true;
+        }
+      }
+    }
+
+    // dishTypes 확인
+    if (recipeDetail.dishTypes != null) {
+      for (var dishType in recipeDetail.dishTypes!) {
+        final lowerDishType = dishType.toLowerCase();
+        if (_koreanFriendlyTags.any((tag) => lowerDishType.contains(tag))) {
+          return true;
+        }
+      }
+    }
+
+    // 제목 확인 (한국인이 좋아할 만한 키워드 포함 여부)
+    final lowerTitle = recipeDetail.title.toLowerCase();
+    if (_koreanFriendlyTags.any((tag) => lowerTitle.contains(tag))) {
+      return true;
+    }
+
+    return false;
+  }
+
   /// 재료로 레시피 검색 (Spoonacular API)
   Future<List<Recipe>> searchRecipesByIngredients(
       List<String> ingredientNames) async {
@@ -138,48 +184,94 @@ class ApiService {
         print('검색된 레시피 수: ${data.length}'); // 디버깅용
 
         final List<Recipe> recipes = [];
+        int checkedCount = 0;
+        const int maxRecipes = 10; // 최대 10개의 한식 레시피
+        const int maxCheck = 30; // 최대 30개까지 확인
 
-        // 각 레시피의 상세 정보를 가져옴 (최대 5개만 상세 정보 가져오기 - 성능 개선)
-        for (var i = 0; i < data.length && i < 5; i++) {
+        // 한식 레시피만 필터링하여 가져오기
+        for (var i = 0;
+            i < data.length &&
+                recipes.length < maxRecipes &&
+                checkedCount < maxCheck;
+            i++) {
           final item = data[i];
           final recipeId = item['id'].toString();
+          checkedCount++;
+
           try {
             print('레시피 상세 정보 가져오는 중: $recipeId'); // 디버깅용
-            final recipe = await getRecipeById(recipeId);
-            recipes.add(recipe);
+            final recipeDetail = await getRecipeDetail(int.parse(recipeId));
+
+            if (recipeDetail != null) {
+              // 한국인이 좋아할 만한 요리인지 확인
+              final isKoreanFriendly = _isKoreanFriendly(recipeDetail);
+
+              if (isKoreanFriendly) {
+                // 한국인이 좋아할 만한 요리인 경우 추가
+                final recipe = recipeDetail.toRecipe();
+                recipes.add(recipe);
+                print('한국인 선호 레시피 추가: ${recipe.title}'); // 디버깅용
+              } else {
+                print('한국인 선호가 아닌 레시피 건너뜀: ${recipeDetail.title}'); // 디버깅용
+              }
+            }
           } catch (e) {
             print('레시피 상세 정보 가져오기 실패: $e'); // 디버깅용
-            // 상세 정보를 가져오지 못한 경우 간단한 정보만 사용
-            recipes.add(Recipe(
-              id: recipeId,
-              title: item['title'] ?? '레시피',
-              description: '',
-              ingredients: [],
-              steps: [],
-              cookingTime: 0,
-              servingSize: 1,
-              imageUrl: item['image'],
-            ));
+            // 에러 발생 시 건너뛰기
+            continue;
           }
         }
 
-        // 나머지 레시피는 간단한 정보만 사용
-        for (var i = 5; i < data.length; i++) {
-          final item = data[i];
-          recipes.add(Recipe(
-            id: item['id']?.toString() ??
-                DateTime.now().millisecondsSinceEpoch.toString(),
-            title: item['title'] ?? '레시피',
-            description: '',
-            ingredients: [],
-            steps: [],
-            cookingTime: 0,
-            servingSize: 1,
-            imageUrl: item['image'],
-          ));
+        // 한식 레시피가 충분하지 않으면 추가로 검색
+        if (recipes.length < 5 && data.length < maxCheck) {
+          // 더 많은 결과를 가져오기 위해 number 파라미터 증가
+          final extendedUrl = Uri.parse(
+            '$baseUrl/recipes/findByIngredients?ingredients=$ingredientsString&apiKey=$apiKey&number=30',
+          );
+
+          try {
+            final extendedResponse = await http.get(extendedUrl);
+            if (extendedResponse.statusCode == 200) {
+              final List<dynamic> extendedData =
+                  json.decode(extendedResponse.body);
+
+              // 이미 확인한 레시피 ID 목록
+              final checkedIds =
+                  data.map((item) => item['id'].toString()).toSet();
+
+              for (var item in extendedData) {
+                if (recipes.length >= maxRecipes) break;
+
+                final recipeId = item['id'].toString();
+                if (checkedIds.contains(recipeId)) continue; // 이미 확인한 레시피는 건너뛰기
+
+                try {
+                  final recipeDetail =
+                      await getRecipeDetail(int.parse(recipeId));
+                  if (recipeDetail != null) {
+                    final isKoreanFriendly = _isKoreanFriendly(recipeDetail);
+
+                    if (isKoreanFriendly) {
+                      final recipe = recipeDetail.toRecipe();
+                      recipes.add(recipe);
+                      print('추가 한국인 선호 레시피: ${recipe.title}'); // 디버깅용
+                    }
+                  }
+                } catch (e) {
+                  continue;
+                }
+              }
+            }
+          } catch (e) {
+            print('추가 검색 실패: $e'); // 디버깅용
+          }
         }
 
-        print('최종 레시피 수: ${recipes.length}'); // 디버깅용
+        if (recipes.isEmpty) {
+          throw Exception('한국인 선호 레시피를 찾을 수 없습니다. 다른 재료를 시도해보세요.');
+        }
+
+        print('최종 한국인 선호 레시피 수: ${recipes.length}'); // 디버깅용
         return recipes;
       } else {
         final errorBody = response.body;
@@ -190,6 +282,28 @@ class ApiService {
     } catch (e) {
       print('API 호출 에러: $e'); // 디버깅용
       throw Exception('네트워크 오류: $e');
+    }
+  }
+
+  /// 레시피 상세 정보 가져오기 (RecipeDetail 반환)
+  Future<RecipeDetail?> getRecipeDetail(int recipeId) async {
+    try {
+      final url = Uri.parse(
+        '$baseUrl/recipes/$recipeId/information?apiKey=$apiKey',
+      );
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return RecipeDetail.fromJson(data);
+      } else {
+        final errorBody = response.body;
+        print('레시피 상세 정보 가져오기 실패: $errorBody');
+        return null;
+      }
+    } catch (e) {
+      print('레시피 상세 정보 API 호출 에러: $e');
+      return null;
     }
   }
 

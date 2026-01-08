@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../models/recipe.dart';
+import 'package:provider/provider.dart';
 import '../widgets/recipe_card.dart';
-import '../services/api_service.dart';
+import '../providers/recipe_provider.dart';
 import 'recipe_detail_screen.dart';
 
 /// 레시피 찾기 화면
@@ -15,10 +15,17 @@ class RecipeSearchScreen extends StatefulWidget {
 class _RecipeSearchScreenState extends State<RecipeSearchScreen> {
   final TextEditingController _ingredientController = TextEditingController();
   final List<String> _selectedIngredients = [];
-  final ApiService _apiService = ApiService();
-  List<Recipe> _recipes = [];
-  bool _isLoading = false;
-  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    // 화면 진입 시 검색 결과 초기화
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final recipeProvider =
+          Provider.of<RecipeProvider>(context, listen: false);
+      recipeProvider.clearSearchResults();
+    });
+  }
 
   @override
   void dispose() {
@@ -53,44 +60,24 @@ class _RecipeSearchScreenState extends State<RecipeSearchScreen> {
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-      _recipes = [];
-    });
+    final recipeProvider = Provider.of<RecipeProvider>(context, listen: false);
+    await recipeProvider.searchRecipes(_selectedIngredients);
 
-    try {
-      print('검색 시작 - 재료: $_selectedIngredients'); // 디버깅용
-      final recipes =
-          await _apiService.searchRecipesByIngredients(_selectedIngredients);
-      print('검색 완료 - 레시피 수: ${recipes.length}'); // 디버깅용
-      setState(() {
-        _recipes = recipes;
-        _isLoading = false;
-      });
+    if (recipeProvider.recipes.isEmpty && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('검색 결과가 없습니다. 다른 재료를 시도해보세요.'),
+        ),
+      );
+    }
 
-      if (recipes.isEmpty && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('검색 결과가 없습니다. 다른 재료를 시도해보세요.'),
-          ),
-        );
-      }
-    } catch (e) {
-      print('검색 에러: $e'); // 디버깅용
-      setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
-        _isLoading = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                '레시피 검색 실패: ${e.toString().replaceAll('Exception: ', '')}'),
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
+    if (recipeProvider.error != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(recipeProvider.error!),
+          duration: const Duration(seconds: 5),
+        ),
+      );
     }
   }
 
@@ -168,21 +155,28 @@ class _RecipeSearchScreenState extends State<RecipeSearchScreen> {
                 // 요리하기 버튼
                 SizedBox(
                   width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : _searchRecipes,
-                    icon: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.restaurant_menu),
-                    label: Text(_isLoading ? '검색 중...' : '요리하기'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: Colors.deepOrange,
-                      foregroundColor: Colors.white,
-                    ),
+                  child: Consumer<RecipeProvider>(
+                    builder: (context, recipeProvider, child) {
+                      return ElevatedButton.icon(
+                        onPressed:
+                            recipeProvider.isLoading ? null : _searchRecipes,
+                        icon: recipeProvider.isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.restaurant_menu),
+                        label:
+                            Text(recipeProvider.isLoading ? '검색 중...' : '요리하기'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          backgroundColor: Colors.deepOrange,
+                          foregroundColor: Colors.white,
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],
@@ -191,53 +185,98 @@ class _RecipeSearchScreenState extends State<RecipeSearchScreen> {
           const Divider(height: 1),
           // 검색 결과 영역
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _errorMessage != null
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.error_outline,
-                                size: 64, color: Colors.red),
-                            const SizedBox(height: 16),
-                            Text(
-                              _errorMessage!,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.red),
+            child: Consumer<RecipeProvider>(
+              builder: (context, recipeProvider, child) {
+                if (recipeProvider.isLoading) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // 로딩 애니메이션
+                        SizedBox(
+                          width: 80,
+                          height: 80,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 6,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.deepOrange,
                             ),
-                          ],
-                        ),
-                      )
-                    : _recipes.isEmpty
-                        ? const Center(
-                            child: Text(
-                              '재료를 추가하고 "요리하기" 버튼을 눌러주세요.',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: _recipes.length,
-                            itemBuilder: (context, index) {
-                              final recipe = _recipes[index];
-                              return RecipeCard(
-                                recipe: recipe,
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          RecipeDetailScreen(recipe: recipe),
-                                    ),
-                                  );
-                                },
-                              );
-                            },
                           ),
+                        ),
+                        const SizedBox(height: 24),
+                        // 로딩 텍스트
+                        Text(
+                          '레시피를 찾고 있어요...',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '잠시만 기다려주세요',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                if (recipeProvider.error != null) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline,
+                            size: 64, color: Colors.red),
+                        const SizedBox(height: 16),
+                        Text(
+                          recipeProvider.error!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                if (recipeProvider.recipes.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      '재료를 추가하고 "요리하기" 버튼을 눌러주세요.',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: recipeProvider.recipes.length,
+                  itemBuilder: (context, index) {
+                    final recipe = recipeProvider.recipes[index];
+                    return RecipeCard(
+                      recipe: recipe,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                RecipeDetailScreen(recipe: recipe),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),

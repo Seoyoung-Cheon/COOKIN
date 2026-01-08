@@ -30,6 +30,7 @@ dependencies:
     # 유틸
     intl: ^0.19.0
     uuid: ^4.3.3
+    translator: ^1.0.0
 
 dev_dependencies:
     flutter_test:
@@ -38,3 +39,9 @@ dev_dependencies:
 
 flutter:
     uses-material-design: true
+
+    # 폰트 설정
+    fonts:
+        - family: LeeSeoYun
+          fonts:
+              - asset: assets/fonts/LeeSeoYun.ttf

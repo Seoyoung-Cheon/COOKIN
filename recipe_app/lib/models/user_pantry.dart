@@ -23,7 +23,8 @@ class UserPantry {
   /// 재료 찾기
   Ingredient? findIngredient(String ingredientId) {
     try {
-      return ingredients.firstWhere((ingredient) => ingredient.id == ingredientId);
+      return ingredients
+          .firstWhere((ingredient) => ingredient.id == ingredientId);
     } catch (e) {
       return null;
     }
@@ -31,7 +32,9 @@ class UserPantry {
 
   /// 카테고리별 재료 필터링
   List<Ingredient> getIngredientsByCategory(String category) {
-    return ingredients.where((ingredient) => ingredient.category == category).toList();
+    return ingredients
+        .where((ingredient) => ingredient.category == category)
+        .toList();
   }
 
   /// 유통기한 임박 재료 필터링
@@ -63,7 +66,3 @@ class UserPantry {
     );
   }
 }
-
-
-
-
